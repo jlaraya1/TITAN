@@ -4380,6 +4380,17 @@ if (!is.na(argv$fge.file)) {
     proj4fge_from_nc<-list(var=argv$fge.proj4_var, att=argv$fge.proj4_att)
   }
 }
+if (!is.na(argv$laf.file) & argv$laf.sct) {
+  if (argv$proj4laf=="" & argv$laf.proj4_var=="" & argv$laf.proj4_att=="" ) {
+    laf.xy_as_vars<-T
+    proj4laf<-NULL
+    proj4laf_from_nc<-NULL
+  } else {
+    laf.xy_as_vars<-F
+    proj4laf<-argv$proj4laf
+    proj4laf_from_nc<-list(var=argv$laf.proj4_var, att=argv$laf.proj4_att)
+  }
+}
 # set the timestamp
 if (!is.na(argv$timestamp)) {
   if (is.na(argv$fg.t)) argv$fg.t<-argv$timestamp
@@ -5428,11 +5439,19 @@ if (argv$buddy_eve) {
     obsToCheck_x<-x[ix]
     obsToCheck_y<-y[ix]
     dr_max<-max(argv$dr.buddy_eve[argv$usefg.buddy_eve==1 & !is.na(argv$usefg.buddy_eve)])
-    thin_fg<-mcmapply(thin_fg_for_buddy,
+    if (!is.na(argv$cores)) {
+      thin_fg<-mcmapply(thin_fg_for_buddy,
+                        1:length(fg_x),
+                        mc.cores=argv$cores,
+                        SIMPLIFY=T,
+                        dr=dr_max)
+    # no-multicores
+    } else {
+      thin_fg<-mapply(thin_fg_for_buddy,
                       1:length(fg_x),
-                      mc.cores=argv$cores,
                       SIMPLIFY=T,
                       dr=dr_max)
+    }
     ixx<-which(thin_fg>0) 
     if (length(ixx)>0) {
       fg_x<-fg_x[ixx]
@@ -5653,11 +5672,19 @@ if ( any(!is.na(argv$usefg.buddy)) &
   obsToCheck_x<-x[ix]
   obsToCheck_y<-y[ix]
   dr_max<-max(argv$dr.buddy[argv$usefg.buddy==1 & !is.na(argv$usefg.buddy)])
-  thin_fg<-mcmapply(thin_fg_for_buddy,
+  if (!is.na(argv$cores)) {
+    thin_fg<-mcmapply(thin_fg_for_buddy,
+                      1:length(fg_x),
+                      mc.cores=argv$cores,
+                      SIMPLIFY=T,
+                      dr=dr_max)
+  # no-multicores
+  } else {
+    thin_fg<-mapply(thin_fg_for_buddy,
                     1:length(fg_x),
-                    mc.cores=argv$cores,
                     SIMPLIFY=T,
                     dr=dr_max)
+  }
   ixx<-which(thin_fg>0) 
   if (length(ixx)>0) {
     fg_x<-fg_x[ixx]
