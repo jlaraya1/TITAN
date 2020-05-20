@@ -5771,8 +5771,10 @@ for (i in 1:argv$i.buddy) {
       # probability of gross error
       stSp_buddy[4,]<-pmax(argv$sdmin.buddy[j],stSp_buddy[4,])
       stSp_buddy[4,which(stSp_buddy[1,]==1)]<-argv$sdmin.buddy[j]
-      pog<-abs(obsToCheck_val-stSp_buddy[3,])/stSp_buddy[4,]
-      n.buddy<-ifelse(priority,0,argv$n.buddy[j]) 
+      # standard deviation of mean
+      sdom<-stSp_buddy[4,]/sqrt(stSp_buddy[1,])
+      pog<-abs(obsToCheck_val-stSp_buddy[3,])/sqrt(stSp_buddy[4,]**2+sdom**2)
+      n.buddy<-ifelse(priority,1,argv$n.buddy[j]) 
       # suspect if: 
       sus<-which( pog>argv$thr.buddy[j] & 
                   stSp_buddy[1,]>n.buddy & 
