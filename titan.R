@@ -2213,7 +2213,7 @@ p <- add_argument(p, "--thr.buddy_eve",
                   default=NA,
                   nargs=Inf)
 p <- add_argument(p, "--n.buddy_eve",
-                  help="consider an arbitrary observation, how many neighbouring observations do we need to call them 'buddies' and perform the check? We need a number greater than 'n'. This is a numeric vector with the same dimension of the vector specifying the thresholds defining the binary events. Default is set to 5.",
+                  help="consider an observation, how many neighbouring observations do we need to perform the check? We need a number greater than 'n'. This is a numeric vector with the same dimension of the vector specifying the thresholds defining the binary events. Default is set to 5.",
                   type="integer",
                   default=NA,
                   nargs=Inf)
@@ -2223,7 +2223,7 @@ p <- add_argument(p, "--dz.buddy_eve",
                   default=NA,
                   nargs=Inf)
 p <- add_argument(p, "--prio.buddy_eve",
-                  help="specify priorities. This is a numeric vector, with the dimension of the number of providers. One positive value for each provider. The smaller the value, the greater the priority. Priorities are used only in the first round of the check, when each observation is compared only against other observations having a priority equal to or grater than its own.",
+                  help="specify priorities. This is a numeric vector, with the dimension of the number of providers. One positive value for each provider. The smaller the value, the greater the priority. Priorities are used only in the first round of the checkand n.buddy_eve is temporarily set to 1. In this first round, each observation is compared only against other observations having a priority equal to or grater than its own. ",
                   type="numeric",
                   default=NA,
                   nargs=Inf,
@@ -2266,7 +2266,7 @@ p <- add_argument(p, "--sdmin.buddy",
                   default=NA,
                   nargs=Inf)
 p <- add_argument(p, "--n.buddy",
-                  help="consider an arbitrary observation, how many neighbouring observations do we need to call them 'buddies' and perform the check? We need a number greater than 'n'. This is a numeric vector with the same dimension of the vector specifying the sizes of the square boxes. Default is set to 5.",
+                  help="consider an arbitrary observation, how many neighbouring observations do we need to perform the check? We need a number greater than 'n.buddy'. This is a numeric vector with the same dimension of the vector specifying the sizes of the square boxes. Default is set to 5.",
                   default=NA,
                   nargs=Inf,
                   type="integer",
@@ -2278,7 +2278,7 @@ p <- add_argument(p, "--dz.buddy",
                   nargs=Inf,
                   short="-zB")
 p <- add_argument(p, "--prio.buddy",
-                  help="specify priorities. This is a numeric vector, with the dimension of the number of providers. One positive value for each provider. The smaller the value, the greater the priority. Priorities are used only in the first round of the check, when each observation is compared only against other observations having a priority equal to or grater than its own.",
+                  help="specify priorities. This is a numeric vector, with the dimension of the number of providers. One positive value for each provider. The smaller the value, the greater the priority. Priorities are used only in the first round of the check and n.buddy is temporarily set to 1. In this first round, each observation is compared only against other observations having a priority equal to or grater than its own.",
                   type="numeric",
                   default=NA,
                   nargs=Inf,
@@ -5515,59 +5515,64 @@ if (argv$buddy_eve) {
         if (!is.na(argv$cores)) {
           stSp_buddy_eve<-mcmapply(statSpat_mapply,
                                    1:obsToCheck_n,
-                                   mc.cores=argv$cores,
-                                   SIMPLIFY=T,
-                                   adjust_for_elev_diff=(argv$variable=="T"),
-                                   dr=argv$dr.buddy_eve[j],
-                                   priority=priority,
-                                   statistics="buddy_event", #buddy_event
-                                   event_threshold=argv$thr_eve.buddy_eve[j],
-                                   pmax=1000,
-                                   event_def="lt")
+                                   mc.cores = argv$cores,
+                                   SIMPLIFY = T,
+                                   adjust_for_elev_diff = (argv$variable=="T"),
+                                   dr                   = argv$dr.buddy_eve[j],
+                                   priority             = priority,
+                                   statistics           = "buddy_event",
+                                   event_threshold = argv$thr_eve.buddy_eve[j],
+                                   pmax                 = 1000,
+                                   event_def            = "lt")
         # no-multicores
         } else {
           stSp_buddy_eve<-mapply(statSpat_mapply,
                                  1:obsToCheck_n,
-                                 SIMPLIFY=T,
-                                 adjust_for_elev_diff=(argv$variable=="T"),
-                                 dr=argv$dr.buddy_eve[j],
-                                 priority=priority,
-                                 statistics="buddy_event", #buddy_event
-                                 event_threshold=argv$thr_eve.buddy_eve[j],
-                                 pmax=1000,
-                                 event_def="lt")
+                                 SIMPLIFY = T,
+                                 adjust_for_elev_diff = (argv$variable=="T"),
+                                 dr                   = argv$dr.buddy_eve[j],
+                                 priority             = priority,
+                                 statistics           = "buddy_event",
+                                 event_threshold = argv$thr_eve.buddy_eve[j],
+                                 pmax                 = 1000,
+                                 event_def            = "lt")
         }
         # stSp_buddy_eve: 1 = nobs, 2 = maxVertDist[m], 
         #                 3 = event yes/no at the i-th point (1=yes,0=no)
         #                 4 = percentage of event=yes among the buddies
-        n.buddy_eve<-ifelse(priority,1,argv$n.buddy_eve[j])
+        # if priority=T then require >1 buddy otherwise >argv$n.buddy_eve
+        n.buddy_eve <- ifelse(priority,1,argv$n.buddy_eve[j])
+        # Mode 'A' when thr.buddy_eve[j] is less than 1
         # suspect if:
-        # Mode 'A' (see thr.buddy_eve help)
-        if (argv$thr.buddy_eve[j]<1) { 
+        # observed event=yes(no) and % of buddies yes(no) is = or < thr.buddy_eve[j]
+        if (argv$thr.buddy_eve[j] < 1) {            # <<< MODE 'A' <<<
           sus<-which( 
-           stSp_buddy_eve[1,]>n.buddy_eve & 
-           stSp_buddy_eve[2,]<argv$dz.buddy_eve[j] &
-           is.na(dqcflag[ix]) &
-           doit[ix]==1 & 
-           ( ( stSp_buddy_eve[3,]==0 & (1-stSp_buddy_eve[4,])<=argv$thr.buddy_eve[j] ) |
-             ( stSp_buddy_eve[3,]==1 & stSp_buddy_eve[4,]<=argv$thr.buddy_eve[j] ) )    )
-        # Mode 'B' (see thr.buddy_eve help)
-        } else if (argv$thr.buddy_eve[j]>=1) {
-          nyes<-round(stSp_buddy_eve[1,]*stSp_buddy_eve[4,],0)
-          nno<-stSp_buddy_eve[1,]-nyes
-          sus<-which( 
-           stSp_buddy_eve[1,]>n.buddy_eve & 
-           stSp_buddy_eve[2,]<argv$dz.buddy_eve[j] &
-           is.na(dqcflag[ix]) &
-           doit[ix]==1 & 
-           ( (stSp_buddy_eve[3,]==0 & nno<argv$thr.buddy_eve[j]) |
-             (stSp_buddy_eve[3,]==1 & nyes<argv$thr.buddy_eve[j]) )  )
-          rm(nyes,nno)
-        } else {
-          sus<-integer(0)
+           stSp_buddy_eve[1,] > n.buddy_eve          & 
+           stSp_buddy_eve[2,] < argv$dz.buddy_eve[j] &
+           is.na(dqcflag[ix])                        &
+           doit[ix]==1                               & 
+           ( ( stSp_buddy_eve[3,]==0 & (1-stSp_buddy_eve[4,]) <= argv$thr.buddy_eve[j] ) |
+             ( stSp_buddy_eve[3,]==1 &    stSp_buddy_eve[4,]  <= argv$thr.buddy_eve[j] )))
+        # Mode 'B' when thr.buddy_eve[j] is equal to or greater than 1 
+        # thr.buddy_eve[j] specifies a number(#) of observations
+        # suspect if:
+        # observed event=yes(no) and the # of buddies yes(no) is < thr.buddy_eve[j]
+        } else if (argv$thr.buddy_eve[j]>=1) {      # <<< MODE 'B' <<<
+          nyes <- round(stSp_buddy_eve[1,]*stSp_buddy_eve[4,],0)
+          nno  <- stSp_buddy_eve[1,]-nyes
+          sus  <- which( 
+           stSp_buddy_eve[1,] > n.buddy_eve          & 
+           stSp_buddy_eve[2,] < argv$dz.buddy_eve[j] &
+           is.na( dqcflag[ix])                       &
+           doit[ix] == 1                             & 
+           ( ( stSp_buddy_eve[3,]==0 &  nno < argv$thr.buddy_eve[j]) |
+             ( stSp_buddy_eve[3,]==1 & nyes < argv$thr.buddy_eve[j])))
+          rm( nyes, nno)
+        } else { # who knows ...
+          sus <- integer(0)
         }
         # set dqcflag
-        if (length(sus)>0) dqcflag[ix[sus]]<-argv$buddy_eve.code
+        if ( length(sus)>0) dqcflag[ix[sus]] <- argv$buddy_eve.code
       } else {
         print("no valid observations left, no buddy_eve check")
       }
@@ -5752,37 +5757,44 @@ for (i in 1:argv$i.buddy) {
       if (!is.na(argv$cores)) {
         stSp_buddy<-mcmapply(statSpat_mapply,
                              1:obsToCheck_n,
-                             mc.cores=argv$cores,
-                             SIMPLIFY=T,
-                             adjust_for_elev_diff=(argv$variable=="T"),
-                             dr=argv$dr.buddy[j],
-                             priority=priority,
-                             pmax=1000)
+                             mc.cores = argv$cores,
+                             SIMPLIFY = T,
+                             adjust_for_elev_diff = (argv$variable=="T"),
+                             dr                   = argv$dr.buddy[j],
+                             priority             = priority,
+                             pmax                 = 1000)
       # no-multicores
       } else {
         stSp_buddy<-mapply(statSpat_mapply,
                            1:obsToCheck_n,
-                           SIMPLIFY=T,
-                           adjust_for_elev_diff=(argv$variable=="T"),
-                           dr=argv$dr.buddy[j],
-                           priority=priority,
-                           pmax=1000)
+                           SIMPLIFY = T,
+                           adjust_for_elev_diff = (argv$variable=="T"),
+                           dr                   = argv$dr.buddy[j],
+                           priority             = priority,
+                           pmax                 = 1000)
       }
-      # probability of gross error
-      stSp_buddy[4,]<-pmax(argv$sdmin.buddy[j],stSp_buddy[4,])
-      stSp_buddy[4,which(stSp_buddy[1,]==1)]<-argv$sdmin.buddy[j]
-      # standard deviation of mean
-      sdom<-stSp_buddy[4,]/sqrt(stSp_buddy[1,])
-      pog<-abs(obsToCheck_val-stSp_buddy[3,])/sqrt(stSp_buddy[4,]**2+sdom**2)
-      n.buddy<-ifelse(priority,1,argv$n.buddy[j]) 
+      # probability of gross error (pog)
+      # pog = deviation / spread > threshold
+      # deviation = observation to check - best estimate(from buddies)
+      # spread = uncertainty, variance of buddies + variance of best estimate
+      # note1: variance of buddies should always be more than sdmin.buddy
+      # note2: variance of best estimate inv prop to sqrt(number of buddies)
+      stSp_buddy[4,] <- pmax(argv$sdmin.buddy[j],stSp_buddy[4,])
+      stSp_buddy[4,which(stSp_buddy[1,]==1)] <- argv$sdmin.buddy[j]
+      # standard deviation of mean (=variance of best estimate)
+      sdom <- stSp_buddy[4,]/sqrt(stSp_buddy[1,])
+      pog <- abs( obsToCheck_val - stSp_buddy[3,] ) / 
+             sqrt( stSp_buddy[4,]**2 + sdom**2)
+      # if priority=T then require >1 buddy otherwise >argv$n.buddy
+      n.buddy <- ifelse( priority, 1, argv$n.buddy[j]) 
       # suspect if: 
-      sus<-which( pog>argv$thr.buddy[j] & 
-                  stSp_buddy[1,]>n.buddy & 
-                  stSp_buddy[2,]<argv$dz.buddy[j] &
-                  is.na(dqcflag[ix]) &
+      sus<-which(            pog > argv$thr.buddy[j] & 
+                  stSp_buddy[1,] > n.buddy           & 
+                  stSp_buddy[2,] < argv$dz.buddy[j]  &
+                  is.na(dqcflag[ix])                 &
                   doit[ix]==1 )
       # set dqcflag
-      if (length(sus)>0) dqcflag[ix[sus]]<-argv$buddy.code
+      if ( length( sus) > 0) dqcflag[ix[sus]] <- argv$buddy.code
     } else {
       print("no valid observations left, no buddy check")
     }
